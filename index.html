@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alpha Net Store</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<!-- QR Code Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ══════════════════════════════════
+// إعدادات Firebase — لا تعدّل هذا
+// ══════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyBTepmV4RuYujp1jClJlS1x29NQ3DQbExc",
+  authDomain: "alpha-net-1bea4.firebaseapp.com",
+  projectId: "alpha-net-1bea4",
+  storageBucket: "alpha-net-1bea4.firebasestorage.app",
+  messagingSenderId: "296792648435",
+  appId: "1:296792648435:web:aecaf11f431b2d37af2586"
+};
+
+// ══════════════════════════════════
+// إعداداتك الشخصية — عدّل هنا فقط
+// ══════════════════════════════════
+window.MY_CONFIG = {
+  whatsapp: '963992972576',      // ← رقم الواتساب
+  shamcash: 'f9a481638647fc6e96fa69f0b1d896a', // ← رقم الشام كاش (صحيح)
+  qrCode: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=f9a481638647fc6e96fa69f0b1d896a',
+  publisherPassword: 'alpha2024' // ⚠️ غيّر كلمة السر الضعيفة!
+};
+
+// حماية من محاولات brute force
+window.loginAttempts = 0;
+window.lastLoginAttempt = 0;
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+window._db = db;
+window._col = collection(db, 'apps');
+window._transactions = collection(db, 'transactions');
+window._fns = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where };
+
+window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
+<style>
+:root {
+  --bg: #080c12;
+  --surface: #0f1520;
+  --card: #141e2e;
+  --card2: #192436;
+  --border: #1e2d42;
+  --accent: #00d4ff;
+  --accent2: #ff9f43;
+  --green: #26de81;
+  --red: #ff6b6b;
+  --text: #deeaff;
+  --muted: #5a7a99;
+  --gold: #ffd32a;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Tajawal',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+
+/* BG */
+body::before {
+  content:''; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 60% 40% at 80% 10%, rgba(0,212,255,0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 30% at 10% 80%, rgba(38,222,129,0.04) 0%, transparent 60%),
+    linear-gradient(rgba(0,212,255,0.02) 1px, transparent 1px) 0 0 / 50px 50px,
+    linear-gradient(90deg, rgba(0,212,255,0.02) 1px, transparent 1px) 0 0 / 50px 50px;
+}
+
+/* NAV */
+nav {
+  position:sticky; top:0; z-index:200;
+  background:rgba(8,12,18,0.95); backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 1.5rem; height:62px;
+}
+.logo { display:flex; align-items:center; gap:10px; text-decoration:none; cursor:pointer; }
+.logo-box {
+  width:36px; height:36px; border-radius:9px;
+  background:linear-gradient(135deg,var(--accent),var(--green));
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Cairo',sans-serif; font-weight:900; color:#080c12; font-size:1rem;
+  box-shadow:0 0 16px rgba(0,212,255,0.3);
+}
+.logo-name { font-family:'Cairo',sans-serif; font-size:1.2rem; font-weight:900; color:var(--accent); }
+.nav-right { display:flex; gap:10px; align-items:center; }
+.btn-nav {
+  padding:7px 16px; border-radius:8px; font-family:inherit; font-size:0.85rem;
+  cursor:pointer; border:none; transition:all 0.2s; display:flex; align-items:center; gap:6px;
+}
+.btn-publisher { background:rgba(0,212,255,0.12); color:var(--accent); border:1px solid rgba(0,212,255,0.25); }
+.btn-publisher:hover { background:rgba(0,212,255,0.22); }
+.btn-wa { background:rgba(37,211,102,0.12); color:#25d366; border:1px solid rgba(37,211,102,0.25); }
+.btn-wa:hover { background:rgba(37,211,102,0.22); }
+
+/* PAGES */
+.page { display:none; position:relative; z-index:1; }
+.page.active { display:block; }
+
+/* ═══════════ STORE PAGE ═══════════ */
+.hero {
+  text-align:center; padding:60px 1.5rem 40px;
+  max-width:700px; margin:0 auto;
+}
+.hero-badge {
+  display:inline-block; background:rgba(0,212,255,0.1);
+  border:1px solid rgba(0,212,255,0.2); color:var(--accent);
+  padding:5px 16px; border-radius:100px; font-size:0.8rem;
+  margin-bottom:1rem; animation:fadeD 0.7s ease both;
+}
+.hero h1 {
+  font-family:'Cairo',sans-serif; font-size:clamp(1.8rem,5vw,3rem);
+  font-weight:900; line-height:1.2; margin-bottom:0.8rem;
+  animation:fadeD 0.7s ease 0.1s both;
+}
+.hero h1 span { background:linear-gradient(135deg,var(--accent),var(--green)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hero p { color:var(--muted); font-size:1rem; line-height:1.8; animation:fadeD 0.7s ease 0.2s both; }
+
+/* FILTER */
+.filter-wrap { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:0 1.5rem; margin-bottom:30px; }
+.fbtn {
+  padding:7px 18px; border-radius:100px; border:1px solid var(--border);
+  background:transparent; color:var(--muted); font-family:inherit; font-size:0.83rem;
+  cursor:pointer; transition:all 0.2s;
+}
+.fbtn.active, .fbtn:hover { border-color:var(--accent); color:var(--accent); background:rgba(0,212,255,0.08); }
+
+/* GRID */
+.apps-section { max-width:1100px; margin:0 auto; padding:0 1.5rem 60px; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:16px; }
+
+.acard {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; overflow:hidden; transition:all 0.3s;
+  display:flex; flex-direction:column;
+  animation:fadeU 0.5s ease both;
+}
+.acard:hover { transform:translateY(-4px); border-color:rgba(0,212,255,0.35); box-shadow:0 12px 40px rgba(0,212,255,0.1); }
+
+.acard-top {
+  height:110px; display:flex; align-items:center; justify-content:center;
+  font-size:3rem; position:relative;
+}
+.acard-top::after { content:''; position:absolute; bottom:0; left:0; right:0; height:35px; background:linear-gradient(transparent,var(--card)); }
+
+.abadge {
+  position:absolute; top:8px; right:8px; z-index:1;
+  padding:2px 9px; border-radius:5px; font-size:0.68rem; font-weight:700;
+  font-family:'Cairo',sans-serif;
+}
+.ab-free { background:rgba(38,222,129,0.18); color:var(--green); border:1px solid rgba(38,222,129,0.3); }
+.ab-paid { background:rgba(255,159,67,0.18); color:var(--accent2); border:1px solid rgba(255,159,67,0.3); }
+.ab-sub  { background:rgba(0,212,255,0.18); color:var(--accent);  border:1px solid rgba(0,212,255,0.3); }
+
+.acard-body { padding:14px 16px 16px; flex:1; display:flex; flex-direction:column; }
+.acard-head { display:flex; align-items:flex-start; gap:10px; margin-bottom:8px; }
+.aico { width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; border:1px solid var(--border); flex-shrink:0; }
+.ameta { flex:1; }
+.aname { font-family:'Cairo',sans-serif; font-size:0.92rem; font-weight:700; }
+.acat { font-size:0.73rem; color:var(--muted); margin-top:1px; }
+.arat { color:var(--gold); font-size:0.78rem; }
+.adesc { font-size:0.82rem; color:var(--muted); line-height:1.6; margin-bottom:12px; flex:1; }
+.afoot { display:flex; align-items:center; justify-content:space-between; padding-top:10px; border-top:1px solid var(--border); }
+.aprice { font-family:'Cairo',sans-serif; font-size:0.95rem; font-weight:700; }
+.aprice.free { color:var(--green); }
+.aprice.paid { color:var(--accent2); }
+.aprice.sub  { color:var(--accent); }
+.abtns { display:flex; gap:6px; }
+.abtn {
+  padding:6px 12px; border-radius:7px; font-family:inherit; font-size:0.78rem;
+  cursor:pointer; border:none; transition:all 0.2s; display:flex; align-items:center; gap:4px;
+}
+.abtn-dl  { background:rgba(38,222,129,0.12); color:var(--green);   border:1px solid rgba(38,222,129,0.25); }
+.abtn-buy { background:rgba(255,159,67,0.12); color:var(--accent2); border:1px solid rgba(255,159,67,0.25); }
+.abtn-wa  { background:rgba(37,211,102,0.1);  color:#25d366;        border:1px solid rgba(37,211,102,0.2); }
+.abtn:hover { opacity:0.85; transform:scale(1.05); }
+
+.empty-state { text-align:center; padding:80px 20px; color:var(--muted); }
+.empty-state .ei { font-size:3rem; margin-bottom:12px; }
+.empty-state p { font-size:0.95rem; }
+
+/* ═══════════ PUBLISHER PAGE ═══════════ */
+.pub-page { max-width:800px; margin:0 auto; padding:30px 1.5rem 60px; }
+.pub-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
+.pub-title { font-family:'Cairo',sans-serif; font-size:1.4rem; font-weight:900; display:flex; align-items:center; gap:10px; }
+.pub-title .dot { width:4px; height:22px; background:linear-gradient(var(--accent),var(--green)); border-radius:2px; }
+
+/* FORM */
+.pub-form {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:16px; padding:24px; margin-bottom:24px;
+}
+.form-title { font-family:'Cairo',sans-serif; font-weight:700; font-size:1rem; margin-bottom:18px; color:var(--accent); display:flex; align-items:center; gap:8px; }
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.form-grid.full { grid-template-columns:1fr; }
+.field { display:flex; flex-direction:column; gap:6px; }
+.field label { font-size:0.82rem; color:var(--muted); }
+.field input, .field select, .field textarea {
+  background:var(--surface); border:1px solid var(--border);
+  color:var(--text); padding:10px 14px; border-radius:9px;
+  font-family:inherit; font-size:0.9rem; outline:none; transition:all 0.2s;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,212,255,0.1);
+}
+.field select option { background:var(--card); }
+.field textarea { resize:vertical; min-height:80px; }
+.field input::placeholder, .field textarea::placeholder { color:var(--muted); }
+
+.form-actions { display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+.btn-submit {
+  background:linear-gradient(135deg,var(--accent),var(--green));
+  color:#080c12; border:none; padding:11px 28px; border-radius:10px;
+  font-family:inherit; font-size:0.95rem; font-weight:700; cursor:pointer;
+  transition:all 0.2s; display:flex; align-items:center; gap:8px;
+}
+.btn-submit:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,212,255,0.35); }
+.btn-reset { background:var(--surface); border:1px solid var(--border); color:var(--muted); padding:11px 20px; border-radius:10px; font-family:inherit; font-size:0.9rem; cursor:pointer; transition:all 0.2s; }
+.btn-reset:hover { border-color:var(--border); color:var(--text); }
+
+/* MY APPS LIST */
+.my-apps { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:20px; }
+.my-apps-title { font-family:'Cairo',sans-serif; font-weight:700; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.my-apps-title .cnt { background:var(--accent); color:#080c12; padding:1px 8px; border-radius:100px; font-size:0.75rem; }
+
+.mapp-item {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:14px 16px;
+  display:flex; align-items:center; gap:14px;
+  margin-bottom:10px; transition:all 0.2s;
+}
+.mapp-item:last-child { margin-bottom:0; }
+.mapp-ico { font-size:1.8rem; width:40px; text-align:center; flex-shrink:0; }
+.mapp-info { flex:1; min-width:0; }
+.mapp-name { font-weight:700; font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mapp-meta { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+.mapp-price { font-family:'Cairo',sans-serif; font-weight:700; font-size:0.85rem; flex-shrink:0; }
+.mapp-price.free { color:var(--green); }
+.mapp-price.paid { color:var(--accent2); }
+.mapp-price.sub  { color:var(--accent); }
+.mapp-actions { display:flex; gap:6px; flex-shrink:0; }
+.btn-del {
+  background:rgba(255,107,107,0.12); color:var(--red);
+  border:1px solid rgba(255,107,107,0.25); padding:5px 12px;
+  border-radius:7px; font-family:inherit; font-size:0.78rem; cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-del:hover { background:rgba(255,107,107,0.25); }
+
+/* TRANSACTIONS */
+.trans-item {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:14px 16px;
+  display:flex; align-items:center; gap:14px;
+  margin-bottom:10px; transition:all 0.2s;
+}
+.trans-item:last-child { margin-bottom:0; }
+.trans-ico { font-size:1.8rem; width:40px; text-align:center; flex-shrink:0; }
+.trans-info { flex:1; min-width:0; }
+.trans-app { font-weight:700; font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.trans-price { font-family:'Cairo',sans-serif; font-weight:700; font-size:0.85rem; color:var(--accent2); margin-top:2px; }
+.trans-status { font-size:0.73rem; color:var(--muted); margin-top:2px; }
+.trans-actions { display:flex; gap:6px; flex-shrink:0; }
+.btn-confirm {
+  background:rgba(38,222,129,0.12); color:var(--green);
+  border:1px solid rgba(38,222,129,0.25); padding:5px 12px;
+  border-radius:7px; font-family:inherit; font-size:0.78rem; cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-confirm:hover { background:rgba(38,222,129,0.25); }
+.btn-reject {
+  background:rgba(255,107,107,0.12); color:var(--red);
+  border:1px solid rgba(255,107,107,0.25); padding:5px 12px;
+  border-radius:7px; font-family:inherit; font-size:0.78rem; cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-reject:hover { background:rgba(255,107,107,0.25); }
+
+/* LOGIN */
+.login-overlay {
+  position:fixed; inset:0; z-index:500;
+  background:rgba(8,12,18,0.97); backdrop-filter:blur(10px);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.login-box {
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:20px; padding:36px; max-width:360px; width:100%; text-align:center;
+}
+.login-icon { font-size:3rem; margin-bottom:12px; }
+.login-title { font-family:'Cairo',sans-serif; font-size:1.3rem; font-weight:900; margin-bottom:6px; }
+.login-sub { color:var(--muted); font-size:0.85rem; margin-bottom:24px; }
+.login-input {
+  width:100%; background:var(--surface); border:1px solid var(--border);
+  color:var(--text); padding:12px 16px; border-radius:10px;
+  font-family:inherit; font-size:1rem; outline:none;
+  text-align:center; letter-spacing:4px; margin-bottom:14px;
+  transition:all 0.2s;
+}
+.login-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,212,255,0.1); }
+.btn-login {
+  width:100%; background:linear-gradient(135deg,var(--accent),var(--green));
+  color:#080c12; border:none; padding:12px; border-radius:10px;
+  font-family:inherit; font-size:1rem; font-weight:700; cursor:pointer;
+  transition:all 0.2s;
+}
+.btn-login:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,212,255,0.35); }
+.login-err { color:var(--red); font-size:0.83rem; margin-top:10px; display:none; }
+
+/* PAY MODAL */
+.modal-ov {
+  position:fixed; inset:0; z-index:300;
+  background:rgba(0,0,0,0.8); backdrop-filter:blur(8px);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  opacity:0; pointer-events:none; transition:opacity 0.3s;
+}
+.modal-ov.open { opacity:1; pointer-events:auto; }
+.modal {
+  background:var(--card2); border:1px solid var(--border);
+  border-radius:20px; padding:28px; max-width:430px; width:100%;
+  transform:translateY(24px); transition:transform 0.3s; position:relative;
+}
+.modal-ov.open .modal { transform:translateY(0); }
+.modal-x {
+  position:absolute; top:14px; left:14px;
+  background:var(--surface); border:1px solid var(--border); color:var(--muted);
+  width:30px; height:30px; border-radius:7px; cursor:pointer; font-size:1rem;
+  display:flex; align-items:center; justify-content:center; transition:all 0.2s;
+}
+.modal-x:hover { color:var(--text); border-color:var(--accent); }
+.modal-title { font-family:'Cairo',sans-serif; font-size:1.2rem; font-weight:900; text-align:center; margin-bottom:4px; }
+.modal-sub { color:var(--muted); font-size:0.83rem; text-align:center; margin-bottom:20px; }
+.modal-app-row {
+  background:var(--surface); border:1px solid var(--border); border-radius:11px;
+  padding:12px 14px; display:flex; align-items:center; gap:12px; margin-bottom:20px;
+}
+.modal-app-ico { font-size:1.7rem; }
+.modal-app-name { font-weight:700; font-size:0.9rem; }
+.modal-app-price { color:var(--accent2); font-family:'Cairo',sans-serif; font-weight:700; font-size:0.85rem; }
+
+.pay-opts { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+.pay-opt {
+  background:var(--surface); border:1px solid var(--border); border-radius:11px;
+  padding:14px 16px; cursor:pointer; transition:all 0.2s;
+  display:flex; align-items:center; gap:12px;
+}
+.pay-opt:hover { border-color:var(--accent); background:rgba(0,212,255,0.05); }
+.po-ico { font-size:1.6rem; }
+.po-info { flex:1; }
+.po-name { font-weight:700; font-size:0.88rem; }
+.po-desc { font-size:0.76rem; color:var(--muted); margin-top:2px; }
+.po-arr { color:var(--muted); }
+
+.shamcash-detail {
+  display:none; background:var(--surface); border:1px solid rgba(0,212,255,0.2);
+  border-radius:11px; padding:16px; text-align:center; margin-bottom:12px;
+}
+.shamcash-detail.show { display:block; }
+.sc-label { font-size:0.82rem; color:var(--muted); margin-bottom:10px; }
+.sc-id {
+  background:var(--card); border:1px solid var(--border); color:var(--accent);
+  padding:8px 16px; border-radius:8px; font-family:monospace; font-size:0.85rem;
+  display:inline-block; cursor:pointer; margin-bottom:10px; transition:all 0.2s;
+}
+.sc-id:hover { background:rgba(0,212,255,0.1); }
+.sc-note { font-size:0.77rem; color:var(--muted); line-height:1.6; }
+.sc-note b { color:#25d366; }
+
+.modal-footer-note { font-size:0.78rem; color:var(--muted); text-align:center; }
+.modal-footer-note b { color:var(--accent); }
+
+/* TOAST */
+.toast {
+  position:fixed; bottom:28px; left:50%; transform:translateX(-50%);
+  background:var(--card2); border:1px solid var(--border);
+  color:var(--text); padding:10px 24px; border-radius:100px;
+  font-size:0.88rem; z-index:9999; white-space:nowrap;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);
+  opacity:0; pointer-events:none; transition:opacity 0.3s;
+}
+.toast.show { opacity:1; }
+
+/* LOADER */
+.loader { text-align:center; padding:60px; color:var(--muted); font-size:0.9rem; }
+.spin { display:inline-block; width:28px; height:28px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; margin-bottom:12px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ANIMS */
+@keyframes fadeD { from{opacity:0;transform:translateY(-16px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeU { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+
+@media(max-width:580px){
+  .form-grid { grid-template-columns:1fr; }
+  .mapp-item { flex-wrap:wrap; }
+  .hero h1 { font-size:1.7rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo" onclick="showPage('store')">
+    <div class="logo-box">α</div>
+    <span class="logo-name">Alpha Net</span>
+  </div>
+  <div class="nav-right">
+    <button class="btn-nav btn-publisher" onclick="goPublisher()">⚙️ لوحة النشر</button>
+    <button class="btn-nav btn-wa" onclick="openWA('مرحباً، أريد الاستفسار')">💬 واتساب</button>
+  </div>
+</nav>
+
+<!-- ═══ STORE PAGE ═══ -->
+<div id="page-store" class="page active">
+  <div class="hero">
+    <div class="hero-badge">🇸🇾 صُنع في سوريا بشغف</div>
+    <h1>متجر <span>Alpha Net</span></h1>
+    <p>تطبيقات مبرمجة بعناية لخدمة مجتمعنا العربي</p>
+  </div>
+
+  <div class="filter-wrap" id="filterWrap">
+    <button class="fbtn active" onclick="setFilter(this,'all')">🗂️ الكل</button>
+    <button class="fbtn" onclick="setFilter(this,'free')">🎁 مجاني</button>
+    <button class="fbtn" onclick="setFilter(this,'paid')">💰 مدفوع</button>
+    <button class="fbtn" onclick="setFilter(this,'sub')">🔄 اشتراك</button>
+    <button class="fbtn" onclick="setFilter(this,'android')">📱 Android</button>
+    <button class="fbtn" onclick="setFilter(this,'windows')">🖥️ Windows</button>
+  </div>
+
+  <div class="apps-section">
+    <div class="grid" id="storeGrid">
+      <div class="loader"><div class="spin"></div><br>جاري تحميل التطبيقات...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PUBLISHER PAGE ═══ -->
+<div id="page-publisher" class="page">
+  <!-- LOGIN OVERLAY -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+      <div class="login-icon">🔐</div>
+      <div class="login-title">لوحة النشر</div>
+      <div class="login-sub">أدخل كلمة السر للدخول</div>
+      <input type="password" class="login-input" id="pwInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="btn-login" onclick="doLogin()">دخول ←</button>
+      <div class="login-err" id="loginErr">❌ كلمة السر غلط</div>
+    </div>
+  </div>
+
+  <div class="pub-page">
+    <div class="pub-header">
+      <div class="pub-title"><div class="dot"></div>لوحة النشر</div>
+      <button class="btn-nav btn-publisher" onclick="showPage('store')" style="font-size:0.8rem">← المتجر</button>
+    </div>
+
+    <!-- ADD FORM -->
+    <div class="pub-form">
+      <div class="form-title">➕ نشر تطبيق جديد</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>اسم التطبيق *</label>
+          <input type="text" id="f-name" placeholder="مثال: سجلات المسجد">
+        </div>
+        <div class="field">
+          <label>الأيقونة (Emoji) *</label>
+          <input type="text" id="f-icon" placeholder="مثال: 🕌" maxlength="4">
+        </div>
+        <div class="field">
+          <label>الفئة *</label>
+          <select id="f-cat">
+            <option value="تعليم">📚 تعليم</option>
+            <option value="أدوات">🛠️ أدوات</option>
+            <option value="إنتاجية">⚡ إنتاجية</option>
+            <option value="مالية">💰 مالية</option>
+            <option value="تصميم">🎨 تصميم</option>
+            <option value="ترفيه">🎮 ترفيه</option>
+            <option value="أمن">🔐 أمن</option>
+            <option value="أخرى">📦 أخرى</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>المنصة *</label>
+          <select id="f-platform">
+            <option value="android">📱 Android (APK)</option>
+            <option value="windows">🖥️ Windows</option>
+            <option value="both">📱🖥️ Android + Windows</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>نوع السعر *</label>
+          <select id="f-pricetype" onchange="togglePrice()">
+            <option value="free">🎁 مجاني</option>
+            <option value="paid">💰 مدفوع (دفعة واحدة)</option>
+            <option value="sub">🔄 اشتراك شهري</option>
+          </select>
+        </div>
+        <div class="field" id="priceField" style="display:none">
+          <label>السعر (دولار) *</label>
+          <input type="text" id="f-price" placeholder="مثال: 80 أو 5/شهر">
+        </div>
+      </div>
+      <div class="form-grid full" style="margin-top:14px">
+        <div class="field">
+          <label>وصف التطبيق *</label>
+          <textarea id="f-desc" placeholder="اكتب وصفاً مختصراً للتطبيق وما يفعله..."></textarea>
+        </div>
+        <div class="field">
+          <label>رابط التحميل (Google Drive أو أي رابط مباشر)</label>
+          <input type="text" id="f-link" placeholder="https://drive.google.com/...">
+        </div>
+        <div class="field">
+          <label>لون خلفية البطاقة (اختياري)</label>
+          <select id="f-color">
+            <option value="linear-gradient(135deg,#0d2137,#0a3d2e)">أخضر داكن 🌿</option>
+            <option value="linear-gradient(135deg,#1a1a0d,#3d3200)">ذهبي داكن ✨</option>
+            <option value="linear-gradient(135deg,#0d1a37,#0a1a3d)">أزرق داكن 🌊</option>
+            <option value="linear-gradient(135deg,#2e1a1a,#4a1b1b)">أحمر داكن 🔴</option>
+            <option value="linear-gradient(135deg,#1a0d37,#2d1a4a)">بنفسجي 💜</option>
+            <option value="linear-gradient(135deg,#0d2e2e,#0a3d3d)">تركوازي 🌊</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-submit" onclick="publishApp()">🚀 نشر التطبيق</button>
+        <button class="btn-reset" onclick="resetForm()">↺ مسح</button>
+      </div>
+    </div>
+
+    <!-- MY APPS -->
+    <div class="my-apps">
+      <div class="my-apps-title">
+        📦 تطبيقاتي المنشورة
+        <span class="cnt" id="appsCnt">0</span>
+      </div>
+      <div id="myAppsList"><div class="loader"><div class="spin"></div></div></div>
+    </div>
+
+    <!-- TRANSACTIONS -->
+    <div class="my-apps" style="margin-top:24px;">
+      <div class="my-apps-title">
+        💰 المعاملات المعلقة
+        <span class="cnt" id="transCnt">0</span>
+      </div>
+      <div id="transactionsList"><div style="text-align:center;padding:30px;color:var(--muted);font-size:0.9rem">لا توجد معاملات معلقة</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAY MODAL -->
+<div class="modal-ov" id="payModal">
+  <div class="modal">
+    <button class="modal-x" onclick="closeModal()">✕</button>
+    <div class="modal-title">🛒 إتمام الشراء</div>
+    <div class="modal-sub">اختر طريقة الدفع المناسبة</div>
+    <div class="modal-app-row">
+      <div class="modal-app-ico" id="mIco">📦</div>
+      <div>
+        <div class="modal-app-name" id="mName">-</div>
+        <div class="modal-app-price" id="mPrice">-</div>
+      </div>
+    </div>
+    <div class="pay-opts">
+      <div class="pay-opt" onclick="toggleSC()">
+        <div class="po-ico">💳</div>
+        <div class="po-info">
+          <div class="po-name">شام كاش</div>
+          <div class="po-desc">حوّل المبلغ مباشرة على حسابنا</div>
+        </div>
+        <div class="po-arr">‹</div>
+      </div>
+      <div class="pay-opt" onclick="payWA()">
+        <div class="po-ico">💬</div>
+        <div class="po-info">
+          <div class="po-name">واتساب</div>
+          <div class="po-desc">تواصل معنا ونرتب طريقة الدفع</div>
+        </div>
+        <div class="po-arr">‹</div>
+      </div>
+      <div class="pay-opt" onclick="hawalaWA()">
+        <div class="po-ico">🏦</div>
+        <div class="po-info">
+          <div class="po-name">مكتب حوالة</div>
+          <div class="po-desc">تواصل معنا لمعرفة التفاصيل</div>
+        </div>
+        <div class="po-arr">‹</div>
+      </div>
+    </div>
+    <div class="shamcash-detail" id="scDetail">
+      <div class="sc-label">📲 امسح رمز QR لتحويل المبلغ:</div>
+      <div id="qrContainer" style="display:flex; justify-content:center; padding:16px; background:var(--surface); border-radius:8px; margin-bottom:12px;"></div>
+      <div class="sc-note">أو نسخ رقم الحساب: <b id="scIdText">YOUR_ACCOUNT_ID</b> 
+        <button onclick="copyId()" style="background:rgba(0,212,255,0.12); color:var(--accent); border:1px solid rgba(0,212,255,0.25); padding:4px 12px; border-radius:6px; cursor:pointer; font-size:0.75rem; margin-right:8px; transition:all 0.2s;" onmouseover="this.style.background='rgba(0,212,255,0.22)'" onmouseout="this.style.background='rgba(0,212,255,0.12)'">📋 نسخ</button>
+      </div>
+      <button class="btn-submit" onclick="recordQRPayment()" style="width:100%;margin-top:12px;font-size:0.9rem">✅ تم التحويل - سجل الدفع</button>
+      <div class="sc-note" style="margin-top:12px">بعد الضغط على الزر، سيتم تسجيل الطلب وسننتظر التحويل ✅</div>
+    </div>
+    <div class="modal-footer-note">سنرسل التطبيق خلال <b>أقل من 24 ساعة</b> بعد تأكيد الدفع 🚀</div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══ STATE ══
+let allApps = [];
+let curFilter = 'all';
+let isLoggedIn = false;
+let payingApp = null;
+let allTransactions = [];
+
+// ══ WAIT FIREBASE ══
+window.addEventListener('firebase-ready', async () => {
+  // update shamcash id display
+  document.getElementById('scIdText').textContent = window.MY_CONFIG.shamcash;
+  await loadApps();
+});
+
+// ══ LOAD APPS ══
+async function loadApps() {
+  try {
+    const { getDocs, query, orderBy } = window._fns;
+    const q = query(window._col, orderBy('createdAt','desc'));
+    const snap = await getDocs(q);
+    allApps = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderStore();
+    renderMyApps();
+    if (isLoggedIn) await loadTransactions();
+  } catch(e) {
+    // Firestore not ready yet — retry
+    setTimeout(loadApps, 1500);
+  }
+}
+
+// ══ RENDER STORE ══
+function renderStore() {
+  const grid = document.getElementById('storeGrid');
+  let apps = allApps;
+  if (curFilter !== 'all') {
+    apps = apps.filter(a => {
+      if (curFilter === 'free') return a.priceType === 'free';
+      if (curFilter === 'paid') return a.priceType === 'paid';
+      if (curFilter === 'sub')  return a.priceType === 'sub';
+      if (curFilter === 'android') return a.platform === 'android' || a.platform === 'both';
+      if (curFilter === 'windows') return a.platform === 'windows' || a.platform === 'both';
+      return true;
+    });
+  }
+  if (!apps.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="ei">📭</div><p>لا يوجد تطبيقات بعد في هذه الفئة</p></div>`;
+    return;
+  }
+  grid.innerHTML = apps.map((a, i) => cardHTML(a, i)).join('');
+}
+
+function cardHTML(a, i) {
+  const badgeClass = a.priceType === 'free' ? 'ab-free' : a.priceType === 'sub' ? 'ab-sub' : 'ab-paid';
+  const badgeText  = a.priceType === 'free' ? 'مجاني' : a.priceType === 'sub' ? 'اشتراك' : 'مدفوع';
+  const priceClass = a.priceType === 'free' ? 'free' : a.priceType === 'sub' ? 'sub' : 'paid';
+  const priceText  = a.priceType === 'free' ? '🎁 مجاني' : (a.price || '');
+  const platText   = a.platform === 'android' ? '📱 Android' : a.platform === 'windows' ? '🖥️ Windows' : '📱🖥️ متعدد';
+
+  const dlBtn = a.priceType === 'free'
+    ? `<button class="abtn abtn-dl" onclick="doDownload('${a.link||''}','${esc(a.name)}')">⬇️ تحميل</button>`
+    : `<button class="abtn abtn-buy" onclick="openPay('${a.id}')">🛒 شراء</button>`;
+
+  const waBtn = `<button class="abtn abtn-wa" onclick="openWA('مرحباً، أريد الاستفسار عن تطبيق: ${esc(a.name)}')">💬</button>`;
+
+  return `
+  <div class="acard" style="animation-delay:${i*0.06}s">
+    <div class="acard-top" style="background:${a.color||'linear-gradient(135deg,#0d2137,#0a3d2e)'}">
+      ${a.icon||'📦'}
+      <span class="abadge ${badgeClass}">${badgeText}</span>
+    </div>
+    <div class="acard-body">
+      <div class="acard-head">
+        <div class="aico" style="background:rgba(0,212,255,0.08)">${a.icon||'📦'}</div>
+        <div class="ameta">
+          <div class="aname">${a.name}</div>
+          <div class="acat">${platText} · ${a.category||''}</div>
+        </div>
+        <div class="arat">★ 5.0</div>
+      </div>
+      <div class="adesc">${a.desc||''}</div>
+      <div class="afoot">
+        <span class="aprice ${priceClass}">${priceText}</span>
+        <div class="abtns">${dlBtn}${waBtn}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══ FILTER ══
+function setFilter(btn, f) {
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  curFilter = f;
+  renderStore();
+}
+
+// ══ PUBLISHER ══
+function goPublisher() {
+  showPage('publisher');
+  if (!isLoggedIn) {
+    document.getElementById('loginOverlay').style.display = 'flex';
+  }
+}
+
+function doLogin() {
+  // Rate limiting - منع brute force attacks
+  const now = Date.now();
+  if (now - window.lastLoginAttempt < 1000) {
+    toast('⏳ حاول بعد ثانية');
+    return;
+  }
+  window.lastLoginAttempt = now;
+  window.loginAttempts++;
+  
+  if (window.loginAttempts > 5) {
+    toast('🔒 تم تعطيل محاولات الدخول - حاول بعد دقائق');
+    document.getElementById('loginOverlay').style.pointerEvents = 'none';
+    return;
+  }
+  
+  const pw = document.getElementById('pwInput').value.trim();
+  if (!pw) {
+    toast('⚠️ أدخل كلمة السر');
+    return;
+  }
+  
+  if (pw === window.MY_CONFIG.publisherPassword) {
+    isLoggedIn = true;
+    window.loginAttempts = 0; // reset
+    document.getElementById('loginOverlay').style.display = 'none';
+    renderMyApps();
+    loadTransactions();
+    toast('✅ أهلاً بك يا ناشر!');
+  } else {
+    document.getElementById('loginErr').style.display = 'block';
+    document.getElementById('pwInput').value = '';
+  }
+}
+
+function togglePrice() {
+  const t = document.getElementById('f-pricetype').value;
+  document.getElementById('priceField').style.display = t === 'free' ? 'none' : 'flex';
+}
+
+async function publishApp() {
+  const name = document.getElementById('f-name').value.trim();
+  const icon = document.getElementById('f-icon').value.trim();
+  const desc = document.getElementById('f-desc').value.trim();
+  const cat  = document.getElementById('f-cat').value;
+  const plat = document.getElementById('f-platform').value;
+  const pt   = document.getElementById('f-pricetype').value;
+  const price= document.getElementById('f-price').value.trim();
+  let link   = document.getElementById('f-link').value.trim();
+  const color= document.getElementById('f-color').value;
+
+  // Validation
+  if (!name || !icon || !desc) { toast('⚠️ أدخل: الاسم والأيقونة والوصف'); return; }
+  if (name.length > 100) { toast('⚠️ اسم التطبيق طويل (أكثر من 100 حرف)'); return; }
+  if (desc.length > 500) { toast('⚠️ الوصف طويل (أكثر من 500 حرف)'); return; }
+  if (pt !== 'free' && !price) { toast('⚠️ أدخل السعر'); return; }
+  
+  // التحقق من صحة الرابط
+  if (link) {
+    link = validateUrl(link);
+    if (!link) { toast('⚠️ رابط غير صحيح (يجب أن يبدأ بـ https://)'); return; }
+  }
+
+  const btn = document.querySelector('.btn-submit');
+  btn.textContent = '⏳ جاري النشر...';
+  btn.disabled = true;
+
+  try {
+    const { addDoc } = window._fns;
+    await addDoc(window._col, {
+      name, icon, desc, category: cat, platform: plat,
+      priceType: pt, price: pt === 'free' ? '' : price,
+      link, color, createdAt: Date.now()
+    });
+    toast('✅ تم نشر التطبيق بنجاح!');
+    resetForm();
+    await loadApps();
+  } catch(e) {
+    toast('❌ حدث خطأ: ' + e.message);
+  }
+  btn.textContent = '🚀 نشر التطبيق';
+  btn.disabled = false;
+}
+
+function resetForm() {
+  ['f-name','f-icon','f-desc','f-link','f-price'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-pricetype').value = 'free';
+  document.getElementById('priceField').style.display = 'none';
+}
+
+function renderMyApps() {
+  const list = document.getElementById('myAppsList');
+  const cnt  = document.getElementById('appsCnt');
+  cnt.textContent = allApps.length;
+  if (!allApps.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:0.9rem">لم تنشر أي تطبيق بعد 📭</div>';
+    return;
+  }
+  const pc = t => t === 'free' ? 'free' : t === 'sub' ? 'sub' : 'paid';
+  const pt = t => t === 'free' ? '🎁 مجاني' : t === 'sub' ? '🔄 اشتراك' : '💰 مدفوع';
+  list.innerHTML = allApps.map(a => `
+    <div class="mapp-item">
+      <div class="mapp-ico">${a.icon||'📦'}</div>
+      <div class="mapp-info">
+        <div class="mapp-name">${a.name}</div>
+        <div class="mapp-meta">${a.category||''} · ${a.platform === 'android' ? 'Android' : a.platform === 'windows' ? 'Windows' : 'متعدد'}</div>
+      </div>
+      <div class="mapp-price ${pc(a.priceType)}">${a.priceType === 'free' ? pt(a.priceType) : (a.price||pt(a.priceType))}</div>
+      <div class="mapp-actions">
+        <button class="btn-del" onclick="deleteApp('${a.id}','${esc(a.name)}')">🗑️ حذف</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function deleteApp(id, name) {
+  if (!confirm(`هل تريد حذف "${name}"؟`)) return;
+  try {
+    const { deleteDoc, doc } = window._fns;
+    await deleteDoc(doc(window._db, 'apps', id));
+    toast('🗑️ تم حذف التطبيق');
+    await loadApps();
+  } catch(e) {
+    toast('❌ خطأ في الحذف');
+  }
+}
+
+// ══ TRANSACTIONS ══
+async function recordTransaction(appId, appName, appIcon, price, paymentMethod) {
+  try {
+    const { addDoc } = window._fns;
+    await addDoc(window._transactions, {
+      appId,
+      appName,
+      appIcon,
+      price,
+      paymentMethod,
+      status: 'pending', // pending, confirmed, rejected
+      createdAt: Date.now(),
+      qrScanned: new Date().toLocaleString('ar-SY')
+    });
+    toast('✅ تم تسجيل الطلب - في انتظار تأكيد الدفع');
+    closeModal();
+  } catch(e) {
+    toast('❌ خطأ في التسجيل: ' + e.message);
+  }
+}
+
+async function loadTransactions() {
+  try {
+    const { getDocs, query, where, orderBy } = window._fns;
+    const q = query(window._transactions, where('status','==','pending'), orderBy('createdAt','desc'));
+    const snap = await getDocs(q);
+    allTransactions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderTransactions();
+  } catch(e) {
+    // 
+  }
+}
+
+function renderTransactions() {
+  const list = document.getElementById('transactionsList');
+  const cnt  = document.getElementById('transCnt');
+  cnt.textContent = allTransactions.length;
+  if (!allTransactions.length) {
+    list.innerHTML = '<div style="text-align:center;padding:30px;color:var(--muted);font-size:0.9rem">لا توجد معاملات معلقة 📭</div>';
+    return;
+  }
+  list.innerHTML = allTransactions.map(t => `
+    <div class="trans-item">
+      <div class="trans-ico">${t.appIcon||'📦'}</div>
+      <div class="trans-info">
+        <div class="trans-app">${t.appName}</div>
+        <div class="trans-price">💰 ${t.price}</div>
+        <div class="trans-status">⏰ ${t.qrScanned} · طريقة: ${t.paymentMethod}</div>
+      </div>
+      <div class="trans-actions">
+        <button class="btn-confirm" onclick="confirmTransaction('${t.id}')">✅ تأكيد</button>
+        <button class="btn-reject" onclick="rejectTransaction('${t.id}')">❌ رفض</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function confirmTransaction(id) {
+  if (!confirm('تأكيد استقبال المبلغ؟')) return;
+  try {
+    const { updateDoc, doc } = window._fns;
+    await updateDoc(doc(window._db, 'transactions', id), {
+      status: 'confirmed',
+      confirmedAt: Date.now()
+    });
+    toast('✅ تم تأكيد الدفع - سيتم إرسال التطبيق للعميل');
+    await loadTransactions();
+  } catch(e) {
+    toast('❌ خطأ: ' + e.message);
+  }
+}
+
+async function rejectTransaction(id) {
+  if (!confirm('هل تريد رفض هذه المعاملة؟')) return;
+  try {
+    const { updateDoc, doc } = window._fns;
+    await updateDoc(doc(window._db, 'transactions', id), {
+      status: 'rejected',
+      rejectedAt: Date.now()
+    });
+    toast('❌ تم رفض المعاملة');
+    await loadTransactions();
+  } catch(e) {
+    toast('❌ خطأ: ' + e.message);
+  }
+}
+
+// ══ PAY MODAL ══
+function generateQR() {
+  // Clear previous QR code
+  const container = document.getElementById('qrContainer');
+  container.innerHTML = '';
+  
+  // إذا كان هناك صورة باركود جاهزة، استخدمها
+  if (window.MY_CONFIG.qrCode && window.MY_CONFIG.qrCode !== 'https://your-qr-image-url.jpg') {
+    const img = document.createElement('img');
+    img.src = window.MY_CONFIG.qrCode;
+    img.style.maxWidth = '200px';
+    img.style.maxHeight = '200px';
+    img.style.borderRadius = '8px';
+    container.appendChild(img);
+  } else {
+    // وإلا، ولّد باركود جديد من رقم شام كاش
+    new QRCode(container, {
+      text: window.MY_CONFIG.shamcash,
+      width: 200,
+      height: 200,
+      colorDark: "#00d4ff",
+      colorLight: "#0f1520"
+    });
+  }
+}
+
+function openPay(id) {
+  payingApp = allApps.find(a => a.id === id);
+  if (!payingApp) return;
+  document.getElementById('mIco').textContent   = payingApp.icon || '📦';
+  document.getElementById('mName').textContent  = payingApp.name;
+  document.getElementById('mPrice').textContent = payingApp.price || '';
+  document.getElementById('scDetail').classList.remove('show');
+  document.getElementById('payModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  
+  // Generate QR code when modal opens
+  setTimeout(() => generateQR(), 100);
+}
+function closeModal() {
+  document.getElementById('payModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.getElementById('payModal').addEventListener('click', e => { if (e.target.id === 'payModal') closeModal(); });
+
+function toggleSC() { 
+  document.getElementById('scDetail').classList.toggle('show');
+  // Regenerate QR when toggled to show
+  if (document.getElementById('scDetail').classList.contains('show')) {
+    setTimeout(() => generateQR(), 50);
+  }
+}
+
+function recordQRPayment() {
+  if (!payingApp) return;
+  recordTransaction(payingApp.id, payingApp.name, payingApp.icon, payingApp.price, 'شام كاش');
+}
+
+function payWA() {
+  if (!payingApp) return;
+  recordTransaction(payingApp.id, payingApp.name, payingApp.icon, payingApp.price, 'واتساب');
+  openWA(`مرحباً، أريد شراء تطبيق: ${payingApp.name} - السعر: ${payingApp.price}`);
+}
+function hawalaWA() {
+  if (!payingApp) return;
+  recordTransaction(payingApp.id, payingApp.name, payingApp.icon, payingApp.price, 'مكتب حوالة');
+  openWA(`مرحباً، أريد الدفع عبر مكتب حوالة لتطبيق: ${payingApp.name} - السعر: ${payingApp.price}`);
+}
+
+function copyId() {
+  navigator.clipboard.writeText(window.MY_CONFIG.shamcash).then(() => toast('✅ تم نسخ رقم الحساب'));
+}
+
+// ══ UTILS ══
+function showPage(p) {
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-' + p).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+function openWA(msg) {
+  window.open(`https://wa.me/${window.MY_CONFIG.whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function doDownload(link, name) {
+  if (!link) { toast('⚠️ رابط التحميل غير متوفر بعد'); return; }
+  toast('⬇️ جاري تحميل ' + name);
+  window.open(link, '_blank');
+}
+
+function esc(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// التحقق من صحة URLs (حماية من malicious links)
+function validateUrl(url) {
+  if (!url) return '';
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
+    return u.toString();
+  } catch(e) { return ''; }
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Environment
+.env
+.env.local
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build
+node_modules/
+dist/
+build/
+
+# Sensitive
+*.key
+config.json
+secrets.json
