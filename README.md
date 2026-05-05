@@ -22,9 +22,9 @@
 2. **إعداد البيانات الشخصية (السطر 34-39):**
    ```javascript
    window.MY_CONFIG = {
-     whatsapp: 'رقمك_هنا',
-     shamcash: 'رقم_الشام_كاش_هنا',
-     publisherPassword: 'كلمة_سر_قوية'
+     whatsapp: '0992972576',
+     shamcash: 'f9a481638647fc6e96fa69f0b1d896a',
+     publisherPassword: '50829355AMLPHA'
    };
    ```
 
