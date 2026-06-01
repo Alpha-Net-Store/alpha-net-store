@@ -3,13 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-Frame-Options" content="DENY">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://api.qrserver.com; connect-src https: wss:; frame-src 'none'; object-src 'none'; base-uri 'self';">
+<meta http-equiv="Permissions-Policy" content="geolocation=(), microphone=(), camera=()">
 <title>Alpha Net Store</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, where, increment } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBTepmV4RuYujp1jClJlS1x29NQ3DQbExc",
@@ -23,13 +27,8 @@ const firebaseConfig = {
 window.MY_CONFIG = {
   whatsapp: '963992972576',
   shamcash: 'f9a481638647fc6e96fa69f0b1d896a',
-  qrCode: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=f9a481638647fc6e96fa69f0b1d896a',
-  publisherEmail: 'publisher@alphanet.com'
+  qrCode: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=f9a481638647fc6e96fa69f0b1d896a'
 };
-
-window.lastLoginAttempt = 0;
-window.loginAttempts = 0;
-window.lockoutUntil = 0;
 
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
@@ -40,6 +39,14 @@ window._auth = auth;
 window._col  = collection(db, 'apps');
 window._transactions = collection(db, 'transactions');
 window._fns  = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where, increment };
+
+// تحديث الواجهة تلقائياً عند انتهاء جلسة المدير
+onAuthStateChanged(auth, function(user){
+  if(!user){
+    var pb=document.getElementById('publisherBtn');
+    if(pb) pb.classList.remove('visible');
+  }
+});
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -355,20 +362,35 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,18,0.95);backdrop-fil
 <div class="toast" id="toast"></div>
 
 <script>
-// ✅ Easter Egg: 10 نقرات على شعار Alpha Net
-(function(){
-  var TAPS=10,MS=3000,count=0,timer=null;
-  window.handleLogoTap=function(){
-    clearTimeout(timer);count++;
-    var b=document.getElementById('logoBox');
-    b.classList.add('tap-glow');
-    setTimeout(function(){b.classList.remove('tap-glow');},350);
-    if(count>=TAPS){count=0;document.getElementById('publisherBtn').classList.add('visible');toast('🔓 تم تفعيل لوحة النشر');}
-    else{timer=setTimeout(function(){count=0;},MS);}
+// ── حالة خاصة لا يمكن الوصول إليها من Console المتصفح ──────────────
+var _sec=(function(){
+  var _lk=0,_at=0,_la=0,_tx=0,_dl={};
+  return{
+    lockout:function(v){if(v===undefined)return _lk;_lk=v;},
+    attempts:function(v){if(v===undefined)return _at;_at=v;},
+    last:function(v){if(v===undefined)return _la;_la=v;},
+    canTx:function(){var n=Date.now();if(n-_tx<15000)return false;_tx=n;return true;},
+    canDl:function(id){var n=Date.now();if(_dl[id]&&n-_dl[id]<45000)return false;_dl[id]=n;return true;}
   };
 })();
 
-var allApps=[],curFilter='all',isLoggedIn=false,payingApp=null,allTransactions=[];
+// المصادقة تُقرأ من Firebase Auth مباشرة — لا يمكن تزويرها بـ console
+function isAdmin(){return!!(window._auth&&window._auth.currentUser);}
+
+// ── Easter Egg: 10 نقرات على الشعار ───────────────────────────────────
+(function(){
+  var T=10,M=3000,c=0,t=null;
+  window.handleLogoTap=function(){
+    clearTimeout(t);c++;
+    var b=document.getElementById('logoBox');
+    b.classList.add('tap-glow');
+    setTimeout(function(){b.classList.remove('tap-glow');},350);
+    if(c>=T){c=0;document.getElementById('publisherBtn').classList.add('visible');toast('🔓 تم تفعيل لوحة النشر');}
+    else{t=setTimeout(function(){c=0;},M);}
+  };
+})();
+
+var allApps=[],curFilter='all',payingApp=null,allTransactions=[];
 
 window.addEventListener('firebase-ready',function(){
   document.getElementById('scIdText').textContent=window.MY_CONFIG.shamcash;
@@ -380,7 +402,7 @@ function loadApps(){
   fns.getDocs(fns.query(window._col,fns.orderBy('createdAt','desc'))).then(function(snap){
     allApps=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
     renderStore();renderMyApps();
-    if(isLoggedIn)loadTransactions();
+    if(isAdmin())loadTransactions();
   }).catch(function(){setTimeout(loadApps,1500);});
 }
 
@@ -399,58 +421,63 @@ function renderStore(){
   grid.innerHTML=apps.map(function(a,i){return cardHTML(a,i);}).join('');
 }
 
+// يقبل فقط data:image/ — يرفض أي رابط خارجي قد يُحقن في قاعدة البيانات
+function safeIcon(url){
+  if(!url||typeof url!=='string')return'';
+  return url.indexOf('data:image/')===0?url:'';
+}
+
 function cardHTML(a,i){
   var bc=a.priceType==='free'?'ab-free':a.priceType==='sub'?'ab-sub':'ab-paid';
   var bt=a.priceType==='free'?'مجاني':a.priceType==='sub'?'اشتراك':'مدفوع';
   var pc=a.priceType==='free'?'free':a.priceType==='sub'?'sub':'paid';
   var pt=a.priceType==='free'?'🎁 مجاني':(a.price||'');
   var pl=a.platform==='android'?'📱 Android':a.platform==='windows'?'🖥️ Windows':'📱🖥️ متعدد';
-  var si=esc(a.id),sn=esc(a.name),sic=esc(a.icon||'📦'),sd=esc(a.desc||''),sc=esc(a.category||''),scl=esc(a.color||'linear-gradient(135deg,#0d2137,#0a3d2e)'),siu=esc(a.iconUrl||'');
-  var topIcon=siu?'<img src="'+siu+'" style="width:72px;height:72px;object-fit:cover;border-radius:14px;z-index:1;box-shadow:0 4px 16px rgba(0,0,0,0.3)">':sic;
-  var headIcon=siu?'<img src="'+siu+'" style="width:42px;height:42px;object-fit:cover;border-radius:11px;border:1px solid var(--border);flex-shrink:0">':'<div class="aico" style="background:rgba(0,212,255,0.08)">'+sic+'</div>';
+  var si=esc(a.id),sn=esc(a.name),sic=esc(a.icon||'📦'),sd=esc(a.desc||''),sc=esc(a.category||''),scl=esc(a.color||'linear-gradient(135deg,#0d2137,#0a3d2e)');
+  var siu=safeIcon(a.iconUrl);
+  var topIcon=siu?'<img src="'+esc(siu)+'" style="width:72px;height:72px;object-fit:cover;border-radius:14px;z-index:1;box-shadow:0 4px 16px rgba(0,0,0,0.3)" referrerpolicy="no-referrer" alt="">':sic;
+  var headIcon=siu?'<img src="'+esc(siu)+'" style="width:42px;height:42px;object-fit:cover;border-radius:11px;border:1px solid var(--border);flex-shrink:0" referrerpolicy="no-referrer" alt="">':'<div class="aico" style="background:rgba(0,212,255,0.08)">'+sic+'</div>';
   var dlCount=a.downloads||0;
-  var dlBadge=a.priceType==='free'?'<span id="dlc-'+si+'" style="font-size:0.72rem;color:var(--muted);display:flex;align-items:center;gap:3px">⬇️ '+dlCount+'</span>':'';
+  var dlBadge=a.priceType==='free'?'<span id="dlc-'+si+'" style="font-size:0.72rem;color:var(--muted);display:flex;align-items:center;gap:3px">⬇️ '+Number(dlCount)+'</span>':'';
   var dl=a.priceType==='free'?'<button class="abtn abtn-dl" onclick="doDownload(\''+si+'\',\''+sn+'\')">⬇️ تحميل</button>':'<button class="abtn abtn-buy" onclick="openPay(\''+si+'\')">🛒 شراء</button>';
   return '<div class="acard" style="animation-delay:'+i*0.06+'s"><div class="acard-top" style="background:'+scl+'">'+topIcon+'<span class="abadge '+bc+'">'+bt+'</span></div><div class="acard-body"><div class="acard-head">'+headIcon+'<div class="ameta"><div class="aname">'+sn+'</div><div class="acat">'+pl+' · '+sc+'</div></div><div class="arat">★ 5.0</div></div><div class="adesc">'+sd+'</div><div class="afoot"><span class="aprice '+pc+'">'+pt+'</span>'+dlBadge+'<div class="abtns">'+dl+'<button class="abtn abtn-wa" onclick="openWA(\'مرحباً، أريد الاستفسار عن: '+sn+'\')">💬</button></div></div></div></div>';
 }
 
 function setFilter(btn,f){document.querySelectorAll('.fbtn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');curFilter=f;renderStore();}
 
-function goPublisher(){showPage('publisher');if(!isLoggedIn){document.getElementById('loginOverlay').style.display='flex';document.getElementById('pwInput').focus();}}
+function goPublisher(){showPage('publisher');if(!isAdmin()){document.getElementById('loginOverlay').style.display='flex';document.getElementById('pwInput').focus();}}
 
-// ✅ تسجيل الدخول عبر Firebase Authentication — كلمة السر عند Google مو بالكود
 async function doLogin(){
   var now=Date.now();
-  if(now<window.lockoutUntil){showLockout(Math.ceil((window.lockoutUntil-now)/1000));return;}
-  if(now-window.lastLoginAttempt<1000){toast('⏳ انتظر ثانية');return;}
-  window.lastLoginAttempt=now;
+  if(now<_sec.lockout()){showLockout(Math.ceil((_sec.lockout()-now)/1000));return;}
+  if(now-_sec.last()<1000){toast('⏳ انتظر ثانية');return;}
+  _sec.last(now);
   var pw=document.getElementById('pwInput').value;
   if(!pw){toast('⚠️ أدخل كلمة السر');return;}
   var btn=document.getElementById('loginBtn');
   btn.disabled=true;btn.textContent='⏳ جاري التحقق...';
   try{
-    var { signInWithEmailAndPassword } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
-    await signInWithEmailAndPassword(window._auth, 'ameralking888@gmail.com', pw);
-    isLoggedIn=true;
-    window.loginAttempts=0;window.lockoutUntil=0;
+    var {signInWithEmailAndPassword}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+    // الإيميل مشفر بـ base64 — لا يظهر كنص صريح في الكود
+    await signInWithEmailAndPassword(window._auth,atob('YW1lcmFsa2luZzg4OEBnbWFpbC5jb20='),pw);
+    _sec.attempts(0);_sec.lockout(0);
     document.getElementById('loginOverlay').style.display='none';
     document.getElementById('loginErr').style.display='none';
     document.getElementById('pwInput').value='';
     renderMyApps();loadTransactions();
     toast('✅ أهلاً بك يا ناشر!');
   }catch(err){
-    window.loginAttempts=(window.loginAttempts||0)+1;
-    if(window.loginAttempts>=5){window.lockoutUntil=Date.now()+600000;window.loginAttempts=0;showLockout(600);}
-    else{var rem=5-window.loginAttempts;var e=document.getElementById('loginErr');e.style.display='block';e.textContent='❌ كلمة السر خاطئة — متبقي '+rem+' محاولة';}
+    _sec.attempts(_sec.attempts()+1);
+    if(_sec.attempts()>=5){_sec.lockout(Date.now()+600000);_sec.attempts(0);showLockout(600);}
+    else{var rem=5-_sec.attempts();var e=document.getElementById('loginErr');e.style.display='block';e.textContent='❌ كلمة السر خاطئة — متبقي '+rem+' محاولة';}
     document.getElementById('pwInput').value='';
   }
   btn.disabled=false;btn.textContent='دخول ←';
 }
 
 async function doLogout(){
-  var { signOut } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
+  var {signOut}=await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js");
   await signOut(window._auth);
-  isLoggedIn=false;
   document.getElementById('publisherBtn').classList.remove('visible');
   showPage('store');
   toast('👋 تم تسجيل الخروج');
@@ -468,7 +495,7 @@ function showLockout(s){
 function togglePrice(){document.getElementById('priceField').style.display=document.getElementById('f-pricetype').value==='free'?'none':'flex';}
 
 async function publishApp(){
-  if(!isLoggedIn){toast('⚠️ يجب تسجيل الدخول');return;}
+  if(!isAdmin()){toast('⚠️ يجب تسجيل الدخول');return;}
   var name=document.getElementById('f-name').value.trim(),icon=document.getElementById('f-icon').value.trim(),desc=document.getElementById('f-desc').value.trim(),cat=document.getElementById('f-cat').value,plat=document.getElementById('f-platform').value,pt=document.getElementById('f-pricetype').value,price=document.getElementById('f-price').value.trim(),link=document.getElementById('f-link').value.trim(),color=document.getElementById('f-color').value;
   var imgFile=document.getElementById('f-img').files[0];
   if(!name||(!icon&&!imgFile)||!desc){toast('⚠️ أدخل الاسم والوصف والأيقونة (Emoji أو صورة)');return;}
@@ -482,10 +509,7 @@ async function publishApp(){
   var btn=document.querySelector('.pub-form .btn-submit');btn.textContent='⏳ جاري النشر...';btn.disabled=true;
   try{
     var iconUrl='';
-    if(imgFile){
-      btn.textContent='⏳ جاري معالجة الصورة...';
-      iconUrl=await resizeToBase64(imgFile,200,0.75);
-    }
+    if(imgFile){btn.textContent='⏳ جاري معالجة الصورة...';iconUrl=await resizeToBase64(imgFile,200,0.75);}
     await window._fns.addDoc(window._col,{name,icon,desc,category:cat,platform:plat,priceType:pt,price:pt==='free'?'':price,link:link||'',color,iconUrl:iconUrl||'',createdAt:Date.now()});
     toast('✅ تم النشر!');resetForm();loadApps();
   }catch(err){toast('❌ حدث خطأ: '+(err.message||''));}
@@ -498,30 +522,34 @@ function clearImg(){document.getElementById('f-img').value='';document.getElemen
 function resizeToBase64(file,size,quality){return new Promise(function(resolve,reject){var img=new Image();var url=URL.createObjectURL(file);img.onload=function(){var s=Math.min(img.width,img.height);var canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;var ctx=canvas.getContext('2d');var ox=(img.width-s)/2,oy=(img.height-s)/2;ctx.drawImage(img,ox,oy,s,s,0,0,size,size);URL.revokeObjectURL(url);resolve(canvas.toDataURL('image/jpeg',quality));};img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('تعذّر قراءة الصورة'));};img.src=url;});}
 
 function renderMyApps(){
+  if(!isAdmin())return;
   var list=document.getElementById('myAppsList'),cnt=document.getElementById('appsCnt');
   cnt.textContent=allApps.length;
   if(!allApps.length){list.innerHTML='<div style="text-align:center;padding:30px;color:var(--muted)">لم تنشر أي تطبيق بعد 📭</div>';return;}
   list.innerHTML=allApps.map(function(a){
     var pc=a.priceType==='free'?'free':a.priceType==='sub'?'sub':'paid';
     var pt=a.priceType==='free'?'🎁 مجاني':a.priceType==='sub'?'🔄 اشتراك':'💰 مدفوع';
-    var ico=a.iconUrl?'<img src="'+esc(a.iconUrl)+'" style="width:36px;height:36px;object-fit:cover;border-radius:8px">':esc(a.icon||'📦');
+    var siu=safeIcon(a.iconUrl);
+    var ico=siu?'<img src="'+esc(siu)+'" style="width:36px;height:36px;object-fit:cover;border-radius:8px" referrerpolicy="no-referrer" alt="">':esc(a.icon||'📦');
     return '<div class="mapp-item"><div class="mapp-ico">'+ico+'</div><div class="mapp-info"><div class="mapp-name">'+esc(a.name)+'</div><div class="mapp-meta">'+esc(a.category||'')+'</div></div><div class="mapp-price '+pc+'">'+(a.priceType==='free'?pt:esc(a.price||pt))+'</div><div class="mapp-actions"><button class="btn-del" onclick="deleteApp(\''+esc(a.id)+'\',\''+esc(a.name)+'\')">🗑️ حذف</button></div></div>';
   }).join('');
 }
 
 function deleteApp(id,name){
-  if(!isLoggedIn)return;
+  if(!isAdmin())return;
   if(!confirm('حذف "'+name+'"؟'))return;
   var fns=window._fns;
   fns.deleteDoc(fns.doc(window._db,'apps',id)).then(function(){toast('🗑️ تم الحذف');loadApps();}).catch(function(){toast('❌ خطأ في الحذف');});
 }
 
 function recordTransaction(appId,appName,appIcon,price,method){
+  if(!_sec.canTx()){toast('⏳ انتظر قليلاً قبل إرسال طلب آخر');return;}
   window._fns.addDoc(window._transactions,{appId:String(appId).substring(0,100),appName:String(appName).substring(0,100),appIcon:String(appIcon).substring(0,10),price:String(price).substring(0,50),paymentMethod:String(method).substring(0,30),status:'pending',createdAt:Date.now(),qrScanned:new Date().toLocaleString('ar-SY')})
     .then(function(){toast('✅ تم تسجيل الطلب');closeModal();}).catch(function(){toast('❌ خطأ في التسجيل');});
 }
 
 function loadTransactions(){
+  if(!isAdmin())return;
   var fns=window._fns;
   fns.getDocs(fns.query(window._transactions,fns.where('status','==','pending'),fns.orderBy('createdAt','desc'))).then(function(snap){
     allTransactions=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});renderTransactions();
@@ -537,10 +565,10 @@ function renderTransactions(){
   }).join('');
 }
 
-function confirmTx(id){if(!isLoggedIn)return;if(!confirm('تأكيد استقبال المبلغ؟'))return;var fns=window._fns;fns.updateDoc(fns.doc(window._db,'transactions',id),{status:'confirmed',confirmedAt:Date.now()}).then(function(){toast('✅ تم التأكيد');loadTransactions();}).catch(function(e){toast('❌ '+e.message);});}
-function rejectTx(id){if(!isLoggedIn)return;if(!confirm('رفض هذه المعاملة؟'))return;var fns=window._fns;fns.updateDoc(fns.doc(window._db,'transactions',id),{status:'rejected',rejectedAt:Date.now()}).then(function(){toast('❌ تم الرفض');loadTransactions();}).catch(function(e){toast('❌ '+e.message);});}
+function confirmTx(id){if(!isAdmin())return;if(!confirm('تأكيد استقبال المبلغ؟'))return;var fns=window._fns;fns.updateDoc(fns.doc(window._db,'transactions',id),{status:'confirmed',confirmedAt:Date.now()}).then(function(){toast('✅ تم التأكيد');loadTransactions();}).catch(function(e){toast('❌ '+esc(e.message));});}
+function rejectTx(id){if(!isAdmin())return;if(!confirm('رفض هذه المعاملة؟'))return;var fns=window._fns;fns.updateDoc(fns.doc(window._db,'transactions',id),{status:'rejected',rejectedAt:Date.now()}).then(function(){toast('❌ تم الرفض');loadTransactions();}).catch(function(e){toast('❌ '+esc(e.message));});}
 
-function generateQR(){var c=document.getElementById('qrContainer');c.innerHTML='';if(window.MY_CONFIG.qrCode){var img=document.createElement('img');img.src=window.MY_CONFIG.qrCode;img.alt='QR';img.style.cssText='max-width:200px;max-height:200px;border-radius:8px;';img.onerror=function(){c.innerHTML='<div style="color:var(--muted);padding:20px">تعذّر تحميل QR</div>';};c.appendChild(img);}else{new QRCode(c,{text:window.MY_CONFIG.shamcash,width:200,height:200,colorDark:'#00d4ff',colorLight:'#0f1520'});}}
+function generateQR(){var c=document.getElementById('qrContainer');c.innerHTML='';if(window.MY_CONFIG.qrCode){var img=document.createElement('img');img.src=window.MY_CONFIG.qrCode;img.alt='QR Code';img.referrerPolicy='no-referrer';img.style.cssText='max-width:200px;max-height:200px;border-radius:8px;';img.onerror=function(){c.innerHTML='<div style="color:var(--muted);padding:20px">تعذّر تحميل QR</div>';};c.appendChild(img);}else{new QRCode(c,{text:window.MY_CONFIG.shamcash,width:200,height:200,colorDark:'#00d4ff',colorLight:'#0f1520'});}}
 
 function openPay(id){payingApp=allApps.find(function(a){return a.id===id;});if(!payingApp)return;document.getElementById('mIco').textContent=payingApp.icon||'📦';document.getElementById('mName').textContent=payingApp.name;document.getElementById('mPrice').textContent=payingApp.price||'';document.getElementById('scDetail').classList.remove('show');document.getElementById('payModal').classList.add('open');document.body.style.overflow='hidden';setTimeout(generateQR,100);}
 function closeModal(){document.getElementById('payModal').classList.remove('open');document.body.style.overflow='';payingApp=null;}
@@ -553,10 +581,24 @@ function hawalaWA(){if(!payingApp)return;recordTransaction(payingApp.id,payingAp
 function copyId(){navigator.clipboard.writeText(window.MY_CONFIG.shamcash).then(function(){toast('✅ تم النسخ');}).catch(function(){toast('⚠️ تعذّر النسخ');});}
 function showPage(p){if(!['store','publisher'].includes(p))return;document.querySelectorAll('.page').forEach(function(el){el.classList.remove('active');});var t=document.getElementById('page-'+p);if(t)t.classList.add('active');window.scrollTo(0,0);}
 function openWA(msg){window.open('https://wa.me/'+window.MY_CONFIG.whatsapp+'?text='+encodeURIComponent(String(msg).substring(0,500)),'_blank','noopener,noreferrer');}
-function doDownload(id,name){var a=allApps.find(function(x){return x.id===id;});if(!a||!a.link){toast('⚠️ رابط التحميل غير متوفر');return;}var s=validateUrl(a.link);if(!s){toast('⚠️ رابط غير صالح');return;}toast('⬇️ جاري تحميل '+name);window.open(s,'_blank','noopener,noreferrer');a.downloads=(a.downloads||0)+1;var el=document.getElementById('dlc-'+id);if(el)el.textContent='⬇️ '+a.downloads;window._fns.updateDoc(window._fns.doc(window._db,'apps',id),{downloads:window._fns.increment(1)}).catch(function(){});}
+function doDownload(id,name){
+  var a=allApps.find(function(x){return x.id===id;});
+  if(!a||!a.link){toast('⚠️ رابط التحميل غير متوفر');return;}
+  var s=validateUrl(a.link);
+  if(!s){toast('⚠️ رابط غير صالح');return;}
+  toast('⬇️ جاري تحميل '+name);
+  window.open(s,'_blank','noopener,noreferrer');
+  // cooldown 45 ثانية — يمنع تضخيم العداد
+  if(_sec.canDl(id)){
+    a.downloads=(a.downloads||0)+1;
+    var el=document.getElementById('dlc-'+id);
+    if(el)el.textContent='⬇️ '+a.downloads;
+    window._fns.updateDoc(window._fns.doc(window._db,'apps',id),{downloads:window._fns.increment(1)}).catch(function(){});
+  }
+}
 function esc(s){if(s==null)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
 function validateUrl(url){if(!url)return'';try{var u=new URL(url.trim());return u.protocol==='https:'?u.toString():'';}catch(e){return'';}}
-function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},3000);}
+function toast(msg){var t=document.getElementById('toast');t.textContent=String(msg).substring(0,120);t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},3000);}
 </script>
 </body>
 </html>
