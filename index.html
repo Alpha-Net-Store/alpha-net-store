@@ -147,6 +147,9 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,18,0.95);backdrop-fil
 .mapp-actions{display:flex;gap:6px;flex-shrink:0;}
 .btn-del{background:rgba(255,107,107,0.12);color:var(--red);border:1px solid rgba(255,107,107,0.25);padding:5px 12px;border-radius:7px;font-family:inherit;font-size:0.78rem;cursor:pointer;transition:all 0.2s;}
 .btn-del:hover{background:rgba(255,107,107,0.25);}
+.btn-edit{background:rgba(0,212,255,0.12);color:var(--accent);border:1px solid rgba(0,212,255,0.25);padding:5px 12px;border-radius:7px;font-family:inherit;font-size:0.78rem;cursor:pointer;transition:all 0.2s;}
+.btn-edit:hover{background:rgba(0,212,255,0.25);}
+.editing-banner{background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.25);border-radius:10px;padding:8px 14px;font-size:0.82rem;color:var(--accent);margin-bottom:14px;display:none;}
 .trans-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:14px;margin-bottom:10px;}
 .trans-item:last-child{margin-bottom:0;}
 .trans-ico{font-size:1.8rem;width:40px;text-align:center;flex-shrink:0;}
@@ -262,7 +265,8 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,18,0.95);backdrop-fil
       </div>
     </div>
     <div class="pub-form">
-      <div class="form-title">➕ نشر تطبيق جديد</div>
+      <div class="form-title" id="formTitle">➕ نشر تطبيق جديد</div>
+      <div class="editing-banner" id="editingBanner">✏️ وضع التعديل — أي تغيير سيُطبَّق على هذا التطبيق</div>
       <div class="form-grid">
         <div class="field"><label>اسم التطبيق *</label><input type="text" id="f-name" placeholder="مثال: سجلات المسجد" maxlength="100"></div>
         <div class="field"><label>الأيقونة (Emoji — اختياري إذا رفعت صورة)</label><input type="text" id="f-icon" placeholder="مثال: 🕌" maxlength="4"></div>
@@ -318,8 +322,9 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,18,0.95);backdrop-fil
         </div>
       </div>
       <div class="form-actions">
-        <button class="btn-submit" onclick="publishApp()">🚀 نشر التطبيق</button>
+        <button class="btn-submit" id="submitBtn" onclick="publishApp()">🚀 نشر التطبيق</button>
         <button class="btn-reset" onclick="resetForm()">↺ مسح</button>
+        <button class="btn-reset" id="cancelEditBtn" onclick="resetForm()" style="display:none;color:var(--red);border-color:rgba(255,107,107,0.3)">✕ إلغاء التعديل</button>
       </div>
     </div>
     <div class="my-apps">
@@ -390,7 +395,7 @@ function isAdmin(){return!!(window._auth&&window._auth.currentUser);}
   };
 })();
 
-var allApps=[],curFilter='all',payingApp=null,allTransactions=[];
+var allApps=[],curFilter='all',payingApp=null,allTransactions=[],editingAppId=null;
 
 window.addEventListener('firebase-ready',function(){
   document.getElementById('scIdText').textContent=window.MY_CONFIG.shamcash;
@@ -506,17 +511,37 @@ async function publishApp(){
   if(!['free','paid','sub'].includes(pt)){toast('⚠️ نوع سعر غير صالح');return;}
   if(link){link=validateUrl(link);if(!link){toast('⚠️ الرابط يجب أن يبدأ بـ https://');return;}}
   if(imgFile&&imgFile.size>2*1024*1024){toast('⚠️ حجم الصورة يجب أن يكون أقل من 2MB');return;}
-  var btn=document.querySelector('.pub-form .btn-submit');btn.textContent='⏳ جاري النشر...';btn.disabled=true;
+  var isEdit=!!editingAppId,currentEditId=editingAppId;
+  var btn=document.getElementById('submitBtn');btn.textContent='⏳ '+(isEdit?'جاري الحفظ...':'جاري النشر...');btn.disabled=true;
   try{
     var iconUrl='';
     if(imgFile){btn.textContent='⏳ جاري معالجة الصورة...';iconUrl=await resizeToBase64(imgFile,200,0.75);}
-    await window._fns.addDoc(window._col,{name,icon,desc,category:cat,platform:plat,priceType:pt,price:pt==='free'?'':price,link:link||'',color,iconUrl:iconUrl||'',createdAt:Date.now()});
-    toast('✅ تم النشر!');resetForm();loadApps();
+    else if(isEdit){var ex=allApps.find(function(x){return x.id===currentEditId;});iconUrl=(ex&&safeIcon(ex.iconUrl))||'';}
+    var data={name,icon,desc,category:cat,platform:plat,priceType:pt,price:pt==='free'?'':price,link:link||'',color,iconUrl:iconUrl};
+    if(isEdit){
+      await window._fns.updateDoc(window._fns.doc(window._db,'apps',currentEditId),data);
+      toast('✅ تم حفظ التعديل!');
+    }else{
+      data.createdAt=Date.now();
+      await window._fns.addDoc(window._col,data);
+      toast('✅ تم النشر!');
+    }
+    resetForm();loadApps();
   }catch(err){toast('❌ حدث خطأ: '+(err.message||''));}
-  btn.textContent='🚀 نشر التطبيق';btn.disabled=false;
+  btn.textContent=editingAppId?'💾 حفظ التعديل':'🚀 نشر التطبيق';btn.disabled=false;
 }
 
-function resetForm(){['f-name','f-icon','f-desc','f-link','f-price'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('f-pricetype').value='free';document.getElementById('priceField').style.display='none';clearImg();}
+function resetForm(){
+  ['f-name','f-icon','f-desc','f-link','f-price'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  document.getElementById('f-pricetype').value='free';
+  document.getElementById('priceField').style.display='none';
+  clearImg();
+  editingAppId=null;
+  document.getElementById('formTitle').textContent='➕ نشر تطبيق جديد';
+  document.getElementById('submitBtn').textContent='🚀 نشر التطبيق';
+  document.getElementById('cancelEditBtn').style.display='none';
+  document.getElementById('editingBanner').style.display='none';
+}
 function previewImg(input){var f=input.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){document.getElementById('imgPreviewEl').src=e.target.result;document.getElementById('imgPreview').style.display='flex';};r.readAsDataURL(f);}
 function clearImg(){document.getElementById('f-img').value='';document.getElementById('imgPreview').style.display='none';document.getElementById('imgPreviewEl').src='';}
 function resizeToBase64(file,size,quality){return new Promise(function(resolve,reject){var img=new Image();var url=URL.createObjectURL(file);img.onload=function(){var s=Math.min(img.width,img.height);var canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;var ctx=canvas.getContext('2d');var ox=(img.width-s)/2,oy=(img.height-s)/2;ctx.drawImage(img,ox,oy,s,s,0,0,size,size);URL.revokeObjectURL(url);resolve(canvas.toDataURL('image/jpeg',quality));};img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('تعذّر قراءة الصورة'));};img.src=url;});}
@@ -531,8 +556,41 @@ function renderMyApps(){
     var pt=a.priceType==='free'?'🎁 مجاني':a.priceType==='sub'?'🔄 اشتراك':'💰 مدفوع';
     var siu=safeIcon(a.iconUrl);
     var ico=siu?'<img src="'+esc(siu)+'" style="width:36px;height:36px;object-fit:cover;border-radius:8px" referrerpolicy="no-referrer" alt="">':esc(a.icon||'📦');
-    return '<div class="mapp-item"><div class="mapp-ico">'+ico+'</div><div class="mapp-info"><div class="mapp-name">'+esc(a.name)+'</div><div class="mapp-meta">'+esc(a.category||'')+'</div></div><div class="mapp-price '+pc+'">'+(a.priceType==='free'?pt:esc(a.price||pt))+'</div><div class="mapp-actions"><button class="btn-del" onclick="deleteApp(\''+esc(a.id)+'\',\''+esc(a.name)+'\')">🗑️ حذف</button></div></div>';
+    return '<div class="mapp-item"><div class="mapp-ico">'+ico+'</div><div class="mapp-info"><div class="mapp-name">'+esc(a.name)+'</div><div class="mapp-meta">'+esc(a.category||'')+(a.downloads?'&nbsp;·&nbsp;⬇️ '+Number(a.downloads):'')+'</div></div><div class="mapp-price '+pc+'">'+(a.priceType==='free'?pt:esc(a.price||pt))+'</div><div class="mapp-actions"><button class="btn-edit" onclick="editApp(\''+esc(a.id)+'\')">✏️ تعديل</button><button class="btn-del" onclick="deleteApp(\''+esc(a.id)+'\',\''+esc(a.name)+'\')">🗑️ حذف</button></div></div>';
   }).join('');
+}
+
+function editApp(id){
+  if(!isAdmin())return;
+  var a=allApps.find(function(x){return x.id===id;});
+  if(!a)return;
+  editingAppId=id;
+  // ملء حقول النموذج ببيانات التطبيق
+  document.getElementById('f-name').value=a.name||'';
+  document.getElementById('f-icon').value=a.icon||'';
+  document.getElementById('f-desc').value=a.desc||'';
+  document.getElementById('f-link').value=a.link||'';
+  document.getElementById('f-price').value=a.price||'';
+  var cat=document.getElementById('f-cat');
+  if(cat)cat.value=a.category||'أخرى';
+  var plat=document.getElementById('f-platform');
+  if(plat)plat.value=a.platform||'android';
+  var pt=document.getElementById('f-pricetype');
+  if(pt)pt.value=a.priceType||'free';
+  var col=document.getElementById('f-color');
+  if(col)col.value=a.color||col.options[0].value;
+  togglePrice();
+  // عرض الصورة الحالية إن وُجدت
+  var siu=safeIcon(a.iconUrl);
+  if(siu){document.getElementById('imgPreviewEl').src=siu;document.getElementById('imgPreview').style.display='flex';}
+  else{clearImg();}
+  // تحديث واجهة النموذج لوضع التعديل
+  document.getElementById('formTitle').innerHTML='✏️ تعديل: <span style="color:var(--text)">'+esc(a.name)+'</span>';
+  document.getElementById('submitBtn').textContent='💾 حفظ التعديل';
+  document.getElementById('cancelEditBtn').style.display='flex';
+  document.getElementById('editingBanner').style.display='block';
+  document.querySelector('.pub-form').scrollIntoView({behavior:'smooth',block:'start'});
+  toast('✏️ جاهز للتعديل على: '+a.name);
 }
 
 function deleteApp(id,name){
