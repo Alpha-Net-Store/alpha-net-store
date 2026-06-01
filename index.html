@@ -10,7 +10,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBTepmV4RuYujp1jClJlS1x29NQ3DQbExc",
@@ -36,13 +35,11 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
 
-const storage = getStorage(app);
 window._db   = db;
 window._auth = auth;
-window._storage = storage;
 window._col  = collection(db, 'apps');
 window._transactions = collection(db, 'transactions');
-window._fns  = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where, ref, uploadBytes, getDownloadURL };
+window._fns  = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where };
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -484,10 +481,8 @@ async function publishApp(){
   try{
     var iconUrl='';
     if(imgFile){
-      btn.textContent='⏳ جاري رفع الصورة...';
-      var storageRef=window._fns.ref(window._storage,'icons/'+Date.now()+'_'+imgFile.name.substring(0,50));
-      var snapshot=await window._fns.uploadBytes(storageRef,imgFile);
-      iconUrl=await window._fns.getDownloadURL(snapshot.ref);
+      btn.textContent='⏳ جاري معالجة الصورة...';
+      iconUrl=await resizeToBase64(imgFile,200,0.75);
     }
     await window._fns.addDoc(window._col,{name,icon,desc,category:cat,platform:plat,priceType:pt,price:pt==='free'?'':price,link:link||'',color,iconUrl:iconUrl||'',createdAt:Date.now()});
     toast('✅ تم النشر!');resetForm();loadApps();
@@ -498,6 +493,7 @@ async function publishApp(){
 function resetForm(){['f-name','f-icon','f-desc','f-link','f-price'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('f-pricetype').value='free';document.getElementById('priceField').style.display='none';clearImg();}
 function previewImg(input){var f=input.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){document.getElementById('imgPreviewEl').src=e.target.result;document.getElementById('imgPreview').style.display='flex';};r.readAsDataURL(f);}
 function clearImg(){document.getElementById('f-img').value='';document.getElementById('imgPreview').style.display='none';document.getElementById('imgPreviewEl').src='';}
+function resizeToBase64(file,size,quality){return new Promise(function(resolve,reject){var img=new Image();var url=URL.createObjectURL(file);img.onload=function(){var s=Math.min(img.width,img.height);var canvas=document.createElement('canvas');canvas.width=size;canvas.height=size;var ctx=canvas.getContext('2d');var ox=(img.width-s)/2,oy=(img.height-s)/2;ctx.drawImage(img,ox,oy,s,s,0,0,size,size);URL.revokeObjectURL(url);resolve(canvas.toDataURL('image/jpeg',quality));};img.onerror=function(){URL.revokeObjectURL(url);reject(new Error('تعذّر قراءة الصورة'));};img.src=url;});}
 
 function renderMyApps(){
   var list=document.getElementById('myAppsList'),cnt=document.getElementById('appsCnt');
