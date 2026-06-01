@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, where, increment } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -39,7 +39,7 @@ window._db   = db;
 window._auth = auth;
 window._col  = collection(db, 'apps');
 window._transactions = collection(db, 'transactions');
-window._fns  = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where };
+window._fns  = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where, increment };
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -408,8 +408,10 @@ function cardHTML(a,i){
   var si=esc(a.id),sn=esc(a.name),sic=esc(a.icon||'📦'),sd=esc(a.desc||''),sc=esc(a.category||''),scl=esc(a.color||'linear-gradient(135deg,#0d2137,#0a3d2e)'),siu=esc(a.iconUrl||'');
   var topIcon=siu?'<img src="'+siu+'" style="width:72px;height:72px;object-fit:cover;border-radius:14px;z-index:1;box-shadow:0 4px 16px rgba(0,0,0,0.3)">':sic;
   var headIcon=siu?'<img src="'+siu+'" style="width:42px;height:42px;object-fit:cover;border-radius:11px;border:1px solid var(--border);flex-shrink:0">':'<div class="aico" style="background:rgba(0,212,255,0.08)">'+sic+'</div>';
+  var dlCount=a.downloads||0;
+  var dlBadge=a.priceType==='free'?'<span id="dlc-'+si+'" style="font-size:0.72rem;color:var(--muted);display:flex;align-items:center;gap:3px">⬇️ '+dlCount+'</span>':'';
   var dl=a.priceType==='free'?'<button class="abtn abtn-dl" onclick="doDownload(\''+si+'\',\''+sn+'\')">⬇️ تحميل</button>':'<button class="abtn abtn-buy" onclick="openPay(\''+si+'\')">🛒 شراء</button>';
-  return '<div class="acard" style="animation-delay:'+i*0.06+'s"><div class="acard-top" style="background:'+scl+'">'+topIcon+'<span class="abadge '+bc+'">'+bt+'</span></div><div class="acard-body"><div class="acard-head">'+headIcon+'<div class="ameta"><div class="aname">'+sn+'</div><div class="acat">'+pl+' · '+sc+'</div></div><div class="arat">★ 5.0</div></div><div class="adesc">'+sd+'</div><div class="afoot"><span class="aprice '+pc+'">'+pt+'</span><div class="abtns">'+dl+'<button class="abtn abtn-wa" onclick="openWA(\'مرحباً، أريد الاستفسار عن: '+sn+'\')">💬</button></div></div></div></div>';
+  return '<div class="acard" style="animation-delay:'+i*0.06+'s"><div class="acard-top" style="background:'+scl+'">'+topIcon+'<span class="abadge '+bc+'">'+bt+'</span></div><div class="acard-body"><div class="acard-head">'+headIcon+'<div class="ameta"><div class="aname">'+sn+'</div><div class="acat">'+pl+' · '+sc+'</div></div><div class="arat">★ 5.0</div></div><div class="adesc">'+sd+'</div><div class="afoot"><span class="aprice '+pc+'">'+pt+'</span>'+dlBadge+'<div class="abtns">'+dl+'<button class="abtn abtn-wa" onclick="openWA(\'مرحباً، أريد الاستفسار عن: '+sn+'\')">💬</button></div></div></div></div>';
 }
 
 function setFilter(btn,f){document.querySelectorAll('.fbtn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');curFilter=f;renderStore();}
@@ -551,7 +553,7 @@ function hawalaWA(){if(!payingApp)return;recordTransaction(payingApp.id,payingAp
 function copyId(){navigator.clipboard.writeText(window.MY_CONFIG.shamcash).then(function(){toast('✅ تم النسخ');}).catch(function(){toast('⚠️ تعذّر النسخ');});}
 function showPage(p){if(!['store','publisher'].includes(p))return;document.querySelectorAll('.page').forEach(function(el){el.classList.remove('active');});var t=document.getElementById('page-'+p);if(t)t.classList.add('active');window.scrollTo(0,0);}
 function openWA(msg){window.open('https://wa.me/'+window.MY_CONFIG.whatsapp+'?text='+encodeURIComponent(String(msg).substring(0,500)),'_blank','noopener,noreferrer');}
-function doDownload(id,name){var a=allApps.find(function(x){return x.id===id;});if(!a||!a.link){toast('⚠️ رابط التحميل غير متوفر');return;}var s=validateUrl(a.link);if(!s){toast('⚠️ رابط غير صالح');return;}toast('⬇️ جاري تحميل '+name);window.open(s,'_blank','noopener,noreferrer');}
+function doDownload(id,name){var a=allApps.find(function(x){return x.id===id;});if(!a||!a.link){toast('⚠️ رابط التحميل غير متوفر');return;}var s=validateUrl(a.link);if(!s){toast('⚠️ رابط غير صالح');return;}toast('⬇️ جاري تحميل '+name);window.open(s,'_blank','noopener,noreferrer');a.downloads=(a.downloads||0)+1;var el=document.getElementById('dlc-'+id);if(el)el.textContent='⬇️ '+a.downloads;window._fns.updateDoc(window._fns.doc(window._db,'apps',id),{downloads:window._fns.increment(1)}).catch(function(){});}
 function esc(s){if(s==null)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
 function validateUrl(url){if(!url)return'';try{var u=new URL(url.trim());return u.protocol==='https:'?u.toString():'';}catch(e){return'';}}
 function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show');},3000);}
