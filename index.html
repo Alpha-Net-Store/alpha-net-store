@@ -10,6 +10,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBTepmV4RuYujp1jClJlS1x29NQ3DQbExc",
@@ -35,11 +36,13 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
 
+const storage = getStorage(app);
 window._db   = db;
 window._auth = auth;
+window._storage = storage;
 window._col  = collection(db, 'apps');
 window._transactions = collection(db, 'transactions');
-window._fns  = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where };
+window._fns  = { addDoc, getDocs, deleteDoc, doc, updateDoc, query, orderBy, collection, where, ref, uploadBytes, getDownloadURL };
 
 window.dispatchEvent(new Event('firebase-ready'));
 </script>
@@ -258,7 +261,7 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,18,0.95);backdrop-fil
       <div class="form-title">➕ نشر تطبيق جديد</div>
       <div class="form-grid">
         <div class="field"><label>اسم التطبيق *</label><input type="text" id="f-name" placeholder="مثال: سجلات المسجد" maxlength="100"></div>
-        <div class="field"><label>الأيقونة (Emoji) *</label><input type="text" id="f-icon" placeholder="مثال: 🕌" maxlength="4"></div>
+        <div class="field"><label>الأيقونة (Emoji — اختياري إذا رفعت صورة)</label><input type="text" id="f-icon" placeholder="مثال: 🕌" maxlength="4"></div>
         <div class="field"><label>الفئة *</label>
           <select id="f-cat">
             <option value="تعليم">📚 تعليم</option>
@@ -288,6 +291,15 @@ nav{position:sticky;top:0;z-index:200;background:rgba(8,12,18,0.95);backdrop-fil
         <div class="field" id="priceField" style="display:none"><label>السعر (دولار) *</label><input type="text" id="f-price" placeholder="مثال: 80 أو 5/شهر" maxlength="30"></div>
       </div>
       <div class="form-grid full" style="margin-top:14px">
+        <div class="field">
+          <label>صورة أيقونة التطبيق</label>
+          <input type="file" id="f-img" accept="image/*" onchange="previewImg(this)" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:9px;font-family:inherit;font-size:0.85rem;cursor:pointer;">
+          <div id="imgPreview" style="display:none;margin-top:10px;align-items:center;gap:12px;">
+            <img id="imgPreviewEl" style="width:64px;height:64px;object-fit:cover;border-radius:12px;border:1px solid var(--border)">
+            <span style="font-size:0.8rem;color:var(--muted)">تم اختيار الصورة</span>
+            <button type="button" onclick="clearImg()" style="background:rgba(255,107,107,0.12);color:var(--red);border:1px solid rgba(255,107,107,0.25);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.75rem">✕ حذف</button>
+          </div>
+        </div>
         <div class="field"><label>وصف التطبيق *</label><textarea id="f-desc" placeholder="اكتب وصفاً مختصراً..." maxlength="500"></textarea></div>
         <div class="field"><label>رابط التحميل</label><input type="text" id="f-link" placeholder="https://drive.google.com/..."></div>
         <div class="field"><label>لون خلفية البطاقة</label>
@@ -396,9 +408,11 @@ function cardHTML(a,i){
   var pc=a.priceType==='free'?'free':a.priceType==='sub'?'sub':'paid';
   var pt=a.priceType==='free'?'🎁 مجاني':(a.price||'');
   var pl=a.platform==='android'?'📱 Android':a.platform==='windows'?'🖥️ Windows':'📱🖥️ متعدد';
-  var si=esc(a.id),sn=esc(a.name),sic=esc(a.icon||'📦'),sd=esc(a.desc||''),sc=esc(a.category||''),scl=esc(a.color||'linear-gradient(135deg,#0d2137,#0a3d2e)');
+  var si=esc(a.id),sn=esc(a.name),sic=esc(a.icon||'📦'),sd=esc(a.desc||''),sc=esc(a.category||''),scl=esc(a.color||'linear-gradient(135deg,#0d2137,#0a3d2e)'),siu=esc(a.iconUrl||'');
+  var topIcon=siu?'<img src="'+siu+'" style="width:72px;height:72px;object-fit:cover;border-radius:14px;z-index:1;box-shadow:0 4px 16px rgba(0,0,0,0.3)">':sic;
+  var headIcon=siu?'<img src="'+siu+'" style="width:42px;height:42px;object-fit:cover;border-radius:11px;border:1px solid var(--border);flex-shrink:0">':'<div class="aico" style="background:rgba(0,212,255,0.08)">'+sic+'</div>';
   var dl=a.priceType==='free'?'<button class="abtn abtn-dl" onclick="doDownload(\''+si+'\',\''+sn+'\')">⬇️ تحميل</button>':'<button class="abtn abtn-buy" onclick="openPay(\''+si+'\')">🛒 شراء</button>';
-  return '<div class="acard" style="animation-delay:'+i*0.06+'s"><div class="acard-top" style="background:'+scl+'">'+sic+'<span class="abadge '+bc+'">'+bt+'</span></div><div class="acard-body"><div class="acard-head"><div class="aico" style="background:rgba(0,212,255,0.08)">'+sic+'</div><div class="ameta"><div class="aname">'+sn+'</div><div class="acat">'+pl+' · '+sc+'</div></div><div class="arat">★ 5.0</div></div><div class="adesc">'+sd+'</div><div class="afoot"><span class="aprice '+pc+'">'+pt+'</span><div class="abtns">'+dl+'<button class="abtn abtn-wa" onclick="openWA(\'مرحباً، أريد الاستفسار عن: '+sn+'\')">💬</button></div></div></div></div>';
+  return '<div class="acard" style="animation-delay:'+i*0.06+'s"><div class="acard-top" style="background:'+scl+'">'+topIcon+'<span class="abadge '+bc+'">'+bt+'</span></div><div class="acard-body"><div class="acard-head">'+headIcon+'<div class="ameta"><div class="aname">'+sn+'</div><div class="acat">'+pl+' · '+sc+'</div></div><div class="arat">★ 5.0</div></div><div class="adesc">'+sd+'</div><div class="afoot"><span class="aprice '+pc+'">'+pt+'</span><div class="abtns">'+dl+'<button class="abtn abtn-wa" onclick="openWA(\'مرحباً، أريد الاستفسار عن: '+sn+'\')">💬</button></div></div></div></div>';
 }
 
 function setFilter(btn,f){document.querySelectorAll('.fbtn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');curFilter=f;renderStore();}
@@ -454,24 +468,36 @@ function showLockout(s){
 
 function togglePrice(){document.getElementById('priceField').style.display=document.getElementById('f-pricetype').value==='free'?'none':'flex';}
 
-function publishApp(){
+async function publishApp(){
   if(!isLoggedIn){toast('⚠️ يجب تسجيل الدخول');return;}
   var name=document.getElementById('f-name').value.trim(),icon=document.getElementById('f-icon').value.trim(),desc=document.getElementById('f-desc').value.trim(),cat=document.getElementById('f-cat').value,plat=document.getElementById('f-platform').value,pt=document.getElementById('f-pricetype').value,price=document.getElementById('f-price').value.trim(),link=document.getElementById('f-link').value.trim(),color=document.getElementById('f-color').value;
-  if(!name||!icon||!desc){toast('⚠️ أدخل الاسم والأيقونة والوصف');return;}
+  var imgFile=document.getElementById('f-img').files[0];
+  if(!name||(!icon&&!imgFile)||!desc){toast('⚠️ أدخل الاسم والوصف والأيقونة (Emoji أو صورة)');return;}
   if(name.length>100||desc.length>500){toast('⚠️ النص طويل جداً');return;}
   if(pt!=='free'&&!price){toast('⚠️ أدخل السعر');return;}
   if(!['تعليم','أدوات','إنتاجية','مالية','تصميم','ترفيه','أمن','أخرى'].includes(cat)){toast('⚠️ فئة غير صالحة');return;}
   if(!['android','windows','both'].includes(plat)){toast('⚠️ منصة غير صالحة');return;}
   if(!['free','paid','sub'].includes(pt)){toast('⚠️ نوع سعر غير صالح');return;}
   if(link){link=validateUrl(link);if(!link){toast('⚠️ الرابط يجب أن يبدأ بـ https://');return;}}
+  if(imgFile&&imgFile.size>2*1024*1024){toast('⚠️ حجم الصورة يجب أن يكون أقل من 2MB');return;}
   var btn=document.querySelector('.pub-form .btn-submit');btn.textContent='⏳ جاري النشر...';btn.disabled=true;
-  window._fns.addDoc(window._col,{name,icon,desc,category:cat,platform:plat,priceType:pt,price:pt==='free'?'':price,link:link||'',color,createdAt:Date.now()})
-    .then(function(){toast('✅ تم النشر!');resetForm();loadApps();})
-    .catch(function(){toast('❌ حدث خطأ');})
-    .finally(function(){btn.textContent='🚀 نشر التطبيق';btn.disabled=false;});
+  try{
+    var iconUrl='';
+    if(imgFile){
+      btn.textContent='⏳ جاري رفع الصورة...';
+      var storageRef=window._fns.ref(window._storage,'icons/'+Date.now()+'_'+imgFile.name.substring(0,50));
+      var snapshot=await window._fns.uploadBytes(storageRef,imgFile);
+      iconUrl=await window._fns.getDownloadURL(snapshot.ref);
+    }
+    await window._fns.addDoc(window._col,{name,icon,desc,category:cat,platform:plat,priceType:pt,price:pt==='free'?'':price,link:link||'',color,iconUrl:iconUrl||'',createdAt:Date.now()});
+    toast('✅ تم النشر!');resetForm();loadApps();
+  }catch(err){toast('❌ حدث خطأ: '+(err.message||''));}
+  btn.textContent='🚀 نشر التطبيق';btn.disabled=false;
 }
 
-function resetForm(){['f-name','f-icon','f-desc','f-link','f-price'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('f-pricetype').value='free';document.getElementById('priceField').style.display='none';}
+function resetForm(){['f-name','f-icon','f-desc','f-link','f-price'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('f-pricetype').value='free';document.getElementById('priceField').style.display='none';clearImg();}
+function previewImg(input){var f=input.files[0];if(!f)return;var r=new FileReader();r.onload=function(e){document.getElementById('imgPreviewEl').src=e.target.result;document.getElementById('imgPreview').style.display='flex';};r.readAsDataURL(f);}
+function clearImg(){document.getElementById('f-img').value='';document.getElementById('imgPreview').style.display='none';document.getElementById('imgPreviewEl').src='';}
 
 function renderMyApps(){
   var list=document.getElementById('myAppsList'),cnt=document.getElementById('appsCnt');
@@ -480,7 +506,8 @@ function renderMyApps(){
   list.innerHTML=allApps.map(function(a){
     var pc=a.priceType==='free'?'free':a.priceType==='sub'?'sub':'paid';
     var pt=a.priceType==='free'?'🎁 مجاني':a.priceType==='sub'?'🔄 اشتراك':'💰 مدفوع';
-    return '<div class="mapp-item"><div class="mapp-ico">'+esc(a.icon||'📦')+'</div><div class="mapp-info"><div class="mapp-name">'+esc(a.name)+'</div><div class="mapp-meta">'+esc(a.category||'')+'</div></div><div class="mapp-price '+pc+'">'+(a.priceType==='free'?pt:esc(a.price||pt))+'</div><div class="mapp-actions"><button class="btn-del" onclick="deleteApp(\''+esc(a.id)+'\',\''+esc(a.name)+'\')">🗑️ حذف</button></div></div>';
+    var ico=a.iconUrl?'<img src="'+esc(a.iconUrl)+'" style="width:36px;height:36px;object-fit:cover;border-radius:8px">':esc(a.icon||'📦');
+    return '<div class="mapp-item"><div class="mapp-ico">'+ico+'</div><div class="mapp-info"><div class="mapp-name">'+esc(a.name)+'</div><div class="mapp-meta">'+esc(a.category||'')+'</div></div><div class="mapp-price '+pc+'">'+(a.priceType==='free'?pt:esc(a.price||pt))+'</div><div class="mapp-actions"><button class="btn-del" onclick="deleteApp(\''+esc(a.id)+'\',\''+esc(a.name)+'\')">🗑️ حذف</button></div></div>';
   }).join('');
 }
 
